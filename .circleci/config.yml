@@ -1,47 +1,29 @@
 version: 2
 jobs:
-  build1:
+  build:
     docker:
-      - image: circleci/ruby:2.4-node
-      - image: circleci/postgres:9.4.12-alpine
+      - image: circleci/python:3.6.2-stretch-browsers
+        environment:
+          FLASK_CONFIG: testing
+          TEST_DATABASE_URL: postgresql://ubuntu@localhost/circle_test?sslmode=disable
+      - image: circleci/postgres:9.6.5-alpine-ram
+        environment:
+          POSTGRES_USER: ubuntu
+          POSTGRES_DB: circle_test
+          POSTGRES_PASSWORD: ""
     steps:
       - checkout
-      - save_cache: # Caches dependencies with a cache key
-          key: v1-repo-{{ .Environment.CIRCLE_SHA1 }}
-          paths:
-            - ~/circleci-demo-workflows
-      
-  build2:
-    docker:
-      - image: circleci/ruby:2.4-node
-      - image: circleci/postgres:9.4.12-alpine
-    steps:
-      - restore_cache: # Restores the cached dependency.
-          key: v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+      - run: mkdir test-reports
       - run:
-          name: Running tests
-          command: make test
-  build3:
-    docker:
-      - image: circleci/ruby:2.4-node
-      - image: circleci/postgres:9.4.12-alpine
-    steps:
-      - restore_cache: # Restores the cached dependency.
-          key: v1-repo-{{ .Environment.CIRCLE_SHA1 }}
+          name: Download Selenium
+          command: |
+            curl -O http://selenium-release.storage.googleapis.com/3.5/selenium-server-standalone-3.5.3.jar
       - run:
-          name: Precompile assets
-          command: bundle exec rake assets:precompile
-...                          
-workflows:
-  version: 2
-  build_and_test: # name of your workflow
-    jobs:
-      - build1
-      - build2:
-        requires:
-           - build1 # wait for build1 job to complete successfully before starting
-           # see circleci.com/docs/2.0/workflows/ for more examples.
-      - build3:
-        requires:
-           - build1 # wait for build1 job to complete successfully before starting
-           # run build2 and build3 in parallel to save time.
+          name: Start Selenium
+          command: |
+            java -jar selenium-server-standalone-3.5.3.jar -log test-reports/selenium.log
+          background: true
+    deploy:
+      override:
+      - ant -lib lib/ Build: 
+          timeout: 600
